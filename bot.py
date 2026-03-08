@@ -2,8 +2,18 @@ import os
 import uuid
 import asyncio
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import psycopg2
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+try:
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    print("Database connected successfully")
+except Exception as e:
+    print("Database connection failed:", e)
+    
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
