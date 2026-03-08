@@ -102,14 +102,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_state[user_id] = None
 
 
-def main():
-
-    # start small web server (needed for Render)
-    threading.Thread(target=run_web_server).start()
-
-    # create asyncio event loop manually (Python 3.14 fix)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+async def run_bot():
 
     app = Application.builder().token(TOKEN).build()
 
@@ -119,7 +112,20 @@ def main():
 
     print("Bot started...")
 
-    app.run_polling()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+
+    while True:
+        await asyncio.sleep(3600)
+
+
+def main():
+
+    # start HTTP server for Render
+    threading.Thread(target=run_web_server).start()
+
+    asyncio.run(run_bot())
 
 
 if __name__ == "__main__":
