@@ -1,11 +1,11 @@
 import os
 import uuid
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-
 
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
@@ -26,6 +26,10 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Bot is running")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 
 
 def run_web_server():
@@ -100,8 +104,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
 
-    # Start small HTTP server so Render detects open port
+    # start small web server (needed for Render)
     threading.Thread(target=run_web_server).start()
+
+    # create asyncio event loop manually (Python 3.14 fix)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     app = Application.builder().token(TOKEN).build()
 
