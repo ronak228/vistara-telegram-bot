@@ -1,109 +1,120 @@
+import os
+import uuid
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = "8788128784:AAHWpOnlnOfKE_RR-VHxZ5ky8iIJYsav9ck"
+TOKEN = os.getenv("TOKEN")
 
-# temporary memory to store user states
+# store user state temporarily
 user_state = {}
 
-main_keyboard = [
+keyboard = [
     ["⭐ Activate Star"],
     ["📊 My Stars"],
     ["ℹ️ Help"]
 ]
 
-reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True)
+reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_message = """
+    text = """
 Welcome to Vistara Little Stars ⭐
 
 Earn stars for every Vistara purchase and unlock rewards for your kids 🎁
+
+Use the menu below to begin.
 """
-    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+    await update.message.reply_text(text, reply_markup=reply_markup)
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    text = update.message.text
+    message = update.message.text
 
-    # STEP 1: user pressed Activate Star
-    if text == "⭐ Activate Star":
-        user_state[user_id] = "waiting_email"
-        await update.message.reply_text(
-            "Please enter your email address to continue."
-        )
+    if message == "⭐ Activate Star":
+        user_state[user_id] = "email"
+        await update.message.reply_text("Please enter your email address:")
         return
 
-    # STEP 2: user enters email
-    if user_state.get(user_id) == "waiting_email":
-        user_state[user_id] = "waiting_order"
-        context.user_data["email"] = text
-
-        await update.message.reply_text(
-            "Thank you. Now please enter your Order ID."
-        )
-        return
-
-    # STEP 3: user enters order ID
-    if user_state.get(user_id) == "waiting_order":
-        user_state[user_id] = "waiting_screenshot"
-        context.user_data["order_id"] = text
-
-        await update.message.reply_text(
-            "Great. Please upload the screenshot of your purchase."
-        )
-        return
-
-    if text == "📊 My Stars":
+    if message == "📊 My Stars":
         await update.message.reply_text(
             "Your star balance will appear here after database integration."
         )
         return
 
-    if text == "ℹ️ Help":
-        await update.message.reply_text(
-            """
+    if message == "ℹ️ Help":
+        help_text = """
 Steps to earn stars ⭐
 
 1. Press Activate Star
 2. Enter your email
 3. Enter your order ID
-4. Upload purchase screenshot
+4. Upload your purchase screenshot
 """
-        )
+        await update.message.reply_text(help_text)
         return
 
-    await update.message.reply_text(
-        "Please use the buttons below.",
-        reply_markup=reply_markup
-    )
+    # email step
+    if user_state.get(user_id) == "email":
+        if "@" not in message:
+            await update.message.reply_text("Please enter a valid email address.")
+            return
+
+        context.user_data["email"] = message
+        user_state[user_id] = "order"
+
+        await update.message.reply_text("Now enter your Order ID:")
+        return
+
+    # order id step
+    if user_state.get(user_id) == "order":
+        context.user_data["order_id"] = message
+        user_state[user_id] = "screenshot"
+
+        await update.message.reply_text("Please upload the screenshot of your order.")
+        return
+
+    await update.message.reply_text("Please use the buttons below.", reply_markup=reply_markup)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
-    if user_state.get(user_id) == "waiting_screenshot":
-        photo_file = await update.message.photo[-1].get_file()
-        await photo_file.download_to_drive("purchase_proof.jpg")
+    if user_state.get(user_id) != "screenshot":
+        return
 
-        email = context.user_data.get("email")
-        order_id = context.user_data.get("order_id")
+    photo = update.message.photo[-1]
+    file = await photo.get_file()
 
-        await update.message.reply_text(
-            f"Submission received ✅\n\nEmail: {email}\nOrder ID: {order_id}\n\nVerification pending."
-        )
+    file_name = f"screenshot_{uuid.uuid4()}.jpg"
+    await file.download_to_drive(file_name)
 
-        user_state[user_id] = None
+    email = context.user_data.get("email")
+    order_id = context.user_data.get("order_id")
+
+    await update.message.reply_text(
+        f"""Submission received ✅
+
+Email: {email}
+Order ID: {order_id}
+
+Verification pending."""
+    )
+
+    user_state[user_id] = None
 
 
-app = ApplicationBuilder().token(TOKEN).build()
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT, handle_message))
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT, handle_text))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-print("Bot is running...")
+    print("Bot started...")
+    app.run_polling()
 
-app.run_polling()
+
+if __name__ == "__main__":
+    main()
