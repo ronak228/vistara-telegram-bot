@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
@@ -81,7 +82,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_state[user_id] = None
 
 
-def main():
+async def main():
 
     app = Application.builder().token(TOKEN).build()
 
@@ -91,8 +92,11 @@ def main():
 
     print("Bot started...")
 
-    app.run_polling()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.idle()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
