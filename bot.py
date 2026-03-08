@@ -1,10 +1,14 @@
 import os
 import uuid
-import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
+
 TOKEN = os.getenv("TOKEN")
+PORT = int(os.environ.get("PORT", 10000))
 
 user_state = {}
 
@@ -15,6 +19,18 @@ keyboard = [
 ]
 
 reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+
+def run_web_server():
+    server = HTTPServer(("0.0.0.0", PORT), HealthHandler)
+    server.serve_forever()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,7 +58,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "ℹ️ Help":
         await update.message.reply_text(
-            "Press Activate Star, enter email, enter order ID, then upload screenshot."
+            "Press Activate Star → Enter email → Enter order ID → Upload screenshot."
         )
         return
 
@@ -84,9 +100,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
 
-    # create event loop manually (fix for Python 3.14)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # Start small HTTP server so Render detects open port
+    threading.Thread(target=run_web_server).start()
 
     app = Application.builder().token(TOKEN).build()
 
